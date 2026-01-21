@@ -113,7 +113,7 @@ export default function ProfilePage() {
           </div>
         )}
         <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-100">
-          <div className="text-3xl font-extrabold text-indigo-600 mb-2">✓</div>
+          <div className="text-3xl font-extrabold text-green-600 mb-2">✓</div>
           <div className="text-slate-600 font-semibold mb-1">Account Status</div>
           <div className="text-xl font-bold text-green-600">Verified</div>
         </div>

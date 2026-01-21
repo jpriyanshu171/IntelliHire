@@ -244,6 +244,7 @@ function App() {
       <main className="min-h-[calc(100vh-200px)]">
         <Routes>
           <Route path="/" element={<JobsPage />} />
+          <Route path="/jobs" element={<JobsPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route
@@ -283,6 +284,22 @@ function App() {
               element={
                 <ProtectedRoute roles={['RECRUITER']}>
                   <CreateJobPage />
+                </ProtectedRoute>
+              }
+          />
+          <Route
+              path="/recruiter/jobs/:id"
+              element={
+                <ProtectedRoute roles={['RECRUITER']}>
+                  <CreateJobPage />
+                </ProtectedRoute>
+              }
+          />
+          <Route
+              path="/recruiter/jobs/:id/applications"
+              element={
+                <ProtectedRoute roles={['RECRUITER']}>
+                  <MyApplicationsPage />
                 </ProtectedRoute>
               }
           />

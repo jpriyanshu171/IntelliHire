@@ -10,13 +10,7 @@ import java.util.Set;
 
 /**
  * Service for calculating skill matching scores between resumes and jobs.
- * This implements the "AI-driven matching" logic mentioned in the project description.
- * 
- * Algorithm:
- * 1. Extract skills from resume and required skills from job
- * 2. Calculate intersection (common skills)
- * 3. Score = (common skills / required skills) * 100
- * 4. Bonus points for exact matches (case-insensitive)
+ * Uses keyword matching algorithm.
  */
 @Service
 public class MatchingService {
@@ -59,39 +53,6 @@ public class MatchingService {
         double score = ((double) commonSkills.size() / requiredSkillsSet.size()) * 100;
         
         // Cap at 100
-        return Math.min(100, (int) Math.round(score));
-    }
-
-    /**
-     * Calculate matching score from skill lists directly.
-     * 
-     * @param studentSkills Student's skills
-     * @param requiredSkills Job's required skills
-     * @return Matching score (0-100)
-     */
-    public int calculateMatchingScore(List<String> studentSkills, List<String> requiredSkills) {
-        if (requiredSkills == null || requiredSkills.isEmpty()) {
-            return 50;
-        }
-
-        Set<String> studentSkillsSet = new HashSet<>();
-        for (String skill : studentSkills) {
-            studentSkillsSet.add(skill.toLowerCase().trim());
-        }
-
-        Set<String> requiredSkillsSet = new HashSet<>();
-        for (String skill : requiredSkills) {
-            requiredSkillsSet.add(skill.toLowerCase().trim());
-        }
-
-        Set<String> commonSkills = new HashSet<>(studentSkillsSet);
-        commonSkills.retainAll(requiredSkillsSet);
-
-        if (requiredSkillsSet.isEmpty()) {
-            return 0;
-        }
-
-        double score = ((double) commonSkills.size() / requiredSkillsSet.size()) * 100;
         return Math.min(100, (int) Math.round(score));
     }
 }

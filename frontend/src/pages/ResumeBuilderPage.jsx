@@ -18,6 +18,18 @@ export default function ResumeBuilderPage() {
   const [newExperience, setNewExperience] = useState({ company: '', position: '', duration: '', description: '' });
   const [newProject, setNewProject] = useState({ name: '', description: '', tech: '' });
 
+  // Helper to safely parse JSON
+  const safeParse = (data) => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data; // Already an array
+    try {
+      return JSON.parse(data);
+    } catch (e) {
+      console.error("Failed to parse JSON:", data);
+      return [];
+    }
+  };
+
   useEffect(() => {
     // Try to load existing resume
     api.get('/resumes/me')
@@ -25,10 +37,10 @@ export default function ResumeBuilderPage() {
         const data = res.data;
         setResume({
           summary: data.summary || '',
-          education: data.education ? JSON.parse(data.education) : [],
+          education: safeParse(data.education),
           skills: data.skills || [],
-          experience: data.experience ? JSON.parse(data.experience) : [],
-          projects: data.projects ? JSON.parse(data.projects) : [],
+          experience: safeParse(data.experience),
+          projects: safeParse(data.projects),
         });
       })
       .catch(() => {
@@ -38,51 +50,63 @@ export default function ResumeBuilderPage() {
 
   const addSkill = () => {
     if (newSkill.trim() && !resume.skills.includes(newSkill.trim())) {
-      setResume({ ...resume, skills: [...resume.skills, newSkill.trim()] });
+      setResume(prev => ({ ...prev, skills: [...prev.skills, newSkill.trim()] }));
       setNewSkill('');
     }
   };
 
   const removeSkill = (skill) => {
-    setResume({ ...resume, skills: resume.skills.filter(s => s !== skill) });
+    setResume(prev => ({ ...prev, skills: prev.skills.filter(s => s !== skill) }));
   };
 
   const addEducation = () => {
     if (newEducation.degree && newEducation.field && newEducation.institution) {
-      setResume({ ...resume, education: [...resume.education, { ...newEducation }] });
+      setResume(prev => ({ ...prev, education: [...prev.education, { ...newEducation }] }));
       setNewEducation({ degree: '', field: '', institution: '', year: '' });
     }
   };
 
   const removeEducation = (index) => {
-    setResume({ ...resume, education: resume.education.filter((_, i) => i !== index) });
+    setResume(prev => ({ ...prev, education: prev.education.filter((_, i) => i !== index) }));
   };
 
   const addExperience = () => {
     if (newExperience.company && newExperience.position) {
-      setResume({ ...resume, experience: [...resume.experience, { ...newExperience }] });
+      setResume(prev => ({ ...prev, experience: [...prev.experience, { ...newExperience }] }));
       setNewExperience({ company: '', position: '', duration: '', description: '' });
     }
   };
 
   const removeExperience = (index) => {
-    setResume({ ...resume, experience: resume.experience.filter((_, i) => i !== index) });
+    setResume(prev => ({ ...prev, experience: prev.experience.filter((_, i) => i !== index) }));
   };
 
   const addProject = () => {
     if (newProject.name && newProject.description) {
-      setResume({ ...resume, projects: [...resume.projects, { ...newProject }] });
+      setResume(prev => ({ ...prev, projects: [...prev.projects, { ...newProject }] }));
       setNewProject({ name: '', description: '', tech: '' });
     }
   };
 
   const removeProject = (index) => {
-    setResume({ ...resume, projects: resume.projects.filter((_, i) => i !== index) });
+    setResume(prev => ({ ...prev, projects: prev.projects.filter((_, i) => i !== index) }));
   };
 
   const handleSave = async () => {
     setLoading(true);
     try {
+      // Since we updated the backend to use @JdbcTypeCode(SqlTypes.JSON),
+      // Hibernate expects JSON objects, not strings.
+      // However, the DTO still has String fields for JSON.
+      // Let's try sending the objects directly if the backend accepts it,
+      // OR send stringified JSON if the DTO requires strings.
+      
+      // Based on the error "column education is of type jsonb but expression is of type character varying",
+      // it seems Hibernate is trying to insert a String into a JSONB column.
+      // The @JdbcTypeCode(SqlTypes.JSON) annotation should fix this by telling Hibernate to convert the String to JSON.
+      
+      // So we should still send JSON strings from the frontend because the DTO has String fields.
+      
       await api.post('/resumes', {
         summary: resume.summary,
         education: JSON.stringify(resume.education),
@@ -93,6 +117,7 @@ export default function ResumeBuilderPage() {
       alert('✅ Resume saved successfully!');
       navigate('/profile');
     } catch (err) {
+      console.error(err);
       alert('Failed to save resume: ' + (err.response?.data?.message || err.message));
     } finally {
       setLoading(false);
@@ -153,7 +178,7 @@ export default function ResumeBuilderPage() {
             <h2 className="text-3xl font-bold text-slate-900 mb-6">Professional Summary</h2>
             <textarea
               value={resume.summary}
-              onChange={(e) => setResume({ ...resume, summary: e.target.value })}
+              onChange={(e) => setResume(prev => ({ ...prev, summary: e.target.value }))}
               placeholder="Write a brief summary about yourself, your career goals, and what makes you unique..."
               className="w-full px-5 py-4 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all text-lg"
               rows={8}
@@ -189,28 +214,28 @@ export default function ResumeBuilderPage() {
                 type="text"
                 placeholder="Degree (e.g., Bachelor of Science)"
                 value={newEducation.degree}
-                onChange={(e) => setNewEducation({ ...newEducation, degree: e.target.value })}
+                onChange={(e) => setNewEducation(prev => ({ ...prev, degree: e.target.value }))}
                 className="px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500"
               />
               <input
                 type="text"
                 placeholder="Field of Study"
                 value={newEducation.field}
-                onChange={(e) => setNewEducation({ ...newEducation, field: e.target.value })}
+                onChange={(e) => setNewEducation(prev => ({ ...prev, field: e.target.value }))}
                 className="px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500"
               />
               <input
                 type="text"
                 placeholder="Institution Name"
                 value={newEducation.institution}
-                onChange={(e) => setNewEducation({ ...newEducation, institution: e.target.value })}
+                onChange={(e) => setNewEducation(prev => ({ ...prev, institution: e.target.value }))}
                 className="px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500"
               />
               <input
                 type="text"
                 placeholder="Year (e.g., 2024)"
                 value={newEducation.year}
-                onChange={(e) => setNewEducation({ ...newEducation, year: e.target.value })}
+                onChange={(e) => setNewEducation(prev => ({ ...prev, year: e.target.value }))}
                 className="px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500"
               />
             </div>
@@ -287,14 +312,14 @@ export default function ResumeBuilderPage() {
                   type="text"
                   placeholder="Company Name"
                   value={newExperience.company}
-                  onChange={(e) => setNewExperience({ ...newExperience, company: e.target.value })}
+                  onChange={(e) => setNewExperience(prev => ({ ...prev, company: e.target.value }))}
                   className="px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500"
                 />
                 <input
                   type="text"
                   placeholder="Position/Title"
                   value={newExperience.position}
-                  onChange={(e) => setNewExperience({ ...newExperience, position: e.target.value })}
+                  onChange={(e) => setNewExperience(prev => ({ ...prev, position: e.target.value }))}
                   className="px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500"
                 />
               </div>
@@ -302,13 +327,13 @@ export default function ResumeBuilderPage() {
                 type="text"
                 placeholder="Duration (e.g., Jan 2023 - Present)"
                 value={newExperience.duration}
-                onChange={(e) => setNewExperience({ ...newExperience, duration: e.target.value })}
+                onChange={(e) => setNewExperience(prev => ({ ...prev, duration: e.target.value }))}
                 className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500"
               />
               <textarea
                 placeholder="Description of your role and achievements..."
                 value={newExperience.description}
-                onChange={(e) => setNewExperience({ ...newExperience, description: e.target.value })}
+                onChange={(e) => setNewExperience(prev => ({ ...prev, description: e.target.value }))}
                 className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500"
                 rows={3}
               />
@@ -350,13 +375,13 @@ export default function ResumeBuilderPage() {
                 type="text"
                 placeholder="Project Name"
                 value={newProject.name}
-                onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
+                onChange={(e) => setNewProject(prev => ({ ...prev, name: e.target.value }))}
                 className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500"
               />
               <textarea
                 placeholder="Project Description"
                 value={newProject.description}
-                onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
+                onChange={(e) => setNewProject(prev => ({ ...prev, description: e.target.value }))}
                 className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500"
                 rows={3}
               />
@@ -364,7 +389,7 @@ export default function ResumeBuilderPage() {
                 type="text"
                 placeholder="Technologies Used (e.g., React, Node.js, MongoDB)"
                 value={newProject.tech}
-                onChange={(e) => setNewProject({ ...newProject, tech: e.target.value })}
+                onChange={(e) => setNewProject(prev => ({ ...prev, tech: e.target.value }))}
                 className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500"
               />
             </div>

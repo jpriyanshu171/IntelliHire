@@ -19,7 +19,6 @@ import java.util.stream.Collectors;
 
 /**
  * Service for managing job postings.
- * Handles job creation, updates, status management, and filtering.
  */
 @Service
 public class JobService {
@@ -28,7 +27,9 @@ public class JobService {
     private final UserRepository userRepository;
     private final ApplicationRepository applicationRepository;
 
-    public JobService(JobRepository jobRepository, UserRepository userRepository, ApplicationRepository applicationRepository) {
+    public JobService(JobRepository jobRepository, 
+                     UserRepository userRepository, 
+                     ApplicationRepository applicationRepository) {
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
         this.applicationRepository = applicationRepository;
@@ -51,42 +52,12 @@ public class JobService {
                 .requiredSkills(request.getRequiredSkills())
                 .salaryMin(request.getSalaryMin())
                 .salaryMax(request.getSalaryMax())
-                .status(request.getStatus() != null 
-                    ? JobStatus.valueOf(request.getStatus().toUpperCase()) 
-                    : JobStatus.DRAFT)
+                .status(request.getStatus() != null
+                        ? JobStatus.valueOf(request.getStatus().toUpperCase())
+                        : JobStatus.ACTIVE)
                 .recruiter(recruiter)
                 .build();
         jobRepository.save(job);
-        return mapToResponse(job, false);
-    }
-
-    /**
-     * Get all active jobs (for students).
-     */
-    public List<JobResponse> getAllJobs() {
-        List<Job> jobs = jobRepository.findByStatus(JobStatus.ACTIVE);
-        return jobs.stream()
-                .map(job -> mapToResponse(job, false))
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Get all jobs for current recruiter.
-     */
-    public List<JobResponse> getMyJobs() {
-        User recruiter = getCurrentUser();
-        List<Job> jobs = jobRepository.findByRecruiter(recruiter);
-        return jobs.stream()
-                .map(job -> mapToResponse(job, true)) // Include application count for recruiter
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Get a specific job by ID.
-     */
-    public JobResponse getJob(Long id) {
-        Job job = jobRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Job not found"));
         return mapToResponse(job, false);
     }
 
@@ -98,9 +69,11 @@ public class JobService {
         User recruiter = getCurrentUser();
         Job job = jobRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Job not found"));
+
         if (!job.getRecruiter().getId().equals(recruiter.getId())) {
             throw new SecurityException("You can only update your own jobs");
         }
+
         job.setTitle(request.getTitle());
         job.setDescription(request.getDescription());
         job.setLocation(request.getLocation());
@@ -111,6 +84,7 @@ public class JobService {
         if (request.getStatus() != null) {
             job.setStatus(JobStatus.valueOf(request.getStatus().toUpperCase()));
         }
+
         jobRepository.save(job);
         return mapToResponse(job, true);
     }
@@ -123,40 +97,100 @@ public class JobService {
         User recruiter = getCurrentUser();
         Job job = jobRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Job not found"));
+
         if (!job.getRecruiter().getId().equals(recruiter.getId())) {
             throw new SecurityException("You can only delete your own jobs");
         }
+
         jobRepository.delete(job);
     }
 
-    private JobResponse mapToResponse(Job job, boolean includeStats) {
-        JobResponse resp = new JobResponse();
-        resp.setId(job.getId());
-        resp.setTitle(job.getTitle());
-        resp.setDescription(job.getDescription());
-        resp.setLocation(job.getLocation());
-        resp.setCompany(job.getCompany());
-        resp.setStatus(job.getStatus().name());
-        resp.setRequiredSkills(job.getRequiredSkills());
-        resp.setSalaryMin(job.getSalaryMin());
-        resp.setSalaryMax(job.getSalaryMax());
-        resp.setCreatedAt(job.getCreatedAt());
-        resp.setUpdatedAt(job.getUpdatedAt());
-        resp.setRecruiterEmail(job.getRecruiter().getEmail());
-        resp.setRecruiterId(job.getRecruiter().getId());
+    /**
+     * Get all active jobs (for students).
+     */
+    public List<JobResponse> getAllJobs(String query) {
+        List<Job> jobs;
         
-        if (includeStats) {
-            resp.setApplicationCount(applicationRepository.countByJob(job));
+        if (query != null && !query.trim().isEmpty()) {
+            String lowerQuery = query.toLowerCase().trim();
+            System.out.println("Filtering jobs with query: " + lowerQuery);
+            
+            jobs = jobRepository.findByStatus(JobStatus.ACTIVE).stream()
+                .filter(job -> {
+                    String jobText = (
+                        (job.getTitle() != null ? job.getTitle() : "") + " " + 
+                        (job.getDescription() != null ? job.getDescription() : "") + " " + 
+                        (job.getCompany() != null ? job.getCompany() : "") + " " + 
+                        (job.getLocation() != null ? job.getLocation() : "") + " " + 
+                        (job.getRequiredSkills() != null ? String.join(" ", job.getRequiredSkills()) : "")
+                    ).toLowerCase();
+                    
+                    boolean matches = jobText.contains(lowerQuery);
+                    if (matches) {
+                        System.out.println("Match found: " + job.getTitle());
+                    }
+                    return matches;
+                })
+                .collect(Collectors.toList());
+                
+            System.out.println("Total matches: " + jobs.size());
+        } else {
+            jobs = jobRepository.findByStatus(JobStatus.ACTIVE);
         }
-        
-        return resp;
+
+        return jobs.stream()
+                .map(job -> mapToResponse(job, false))
+                .collect(Collectors.toList());
+    }
+
+    public List<JobResponse> getMyJobs() {
+        User recruiter = getCurrentUser();
+        List<Job> jobs = jobRepository.findByRecruiter(recruiter);
+        return jobs.stream()
+                .map(job -> mapToResponse(job, true))
+                .collect(Collectors.toList());
+    }
+
+    public JobResponse getJob(Long id) {
+        Job job = jobRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Job not found"));
+        return mapToResponse(job, false);
     }
 
     private User getCurrentUser() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String email = auth.getName();
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
+            return null;
+        }
+        String email = authentication.getName();
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalStateException("User not found"));
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
+    private JobResponse mapToResponse(Job job, boolean includeStats) {
+        JobResponse response = new JobResponse();
+        response.setId(job.getId());
+        response.setTitle(job.getTitle());
+        response.setDescription(job.getDescription());
+        response.setLocation(job.getLocation());
+        response.setCompany(job.getCompany());
+        response.setStatus(job.getStatus().name());
+        response.setRequiredSkills(job.getRequiredSkills());
+        response.setSalaryMin(job.getSalaryMin());
+        response.setSalaryMax(job.getSalaryMax());
+        response.setCreatedAt(job.getCreatedAt());
+        response.setUpdatedAt(job.getUpdatedAt());
+        
+        if (job.getRecruiter() != null) {
+            response.setRecruiterEmail(job.getRecruiter().getEmail());
+            response.setRecruiterId(job.getRecruiter().getId());
+        }
+
+        if (includeStats) {
+            long count = applicationRepository.countByJob(job);
+            response.setApplicationCount(count);
+        }
+
+        return response;
     }
 }
-

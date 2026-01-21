@@ -8,7 +8,7 @@ export default function RecruiterJobsPage() {
 
     useEffect(() => {
         api
-            .get('/jobs/my') // recruiter-specific endpoint
+            .get('/jobs/me') // recruiter-specific endpoint
             .then((res) => setJobs(res.data))
             .catch(() => setJobs([]))
             .finally(() => setLoading(false));
@@ -63,15 +63,26 @@ export default function RecruiterJobsPage() {
                             className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
                         >
                             <div>
-                                <h3 className="text-xl font-bold text-slate-900">
-                                    {job.title}
-                                </h3>
+                                <div className="flex items-center gap-3 mb-1">
+                                    <h3 className="text-xl font-bold text-slate-900">
+                                        {job.title}
+                                    </h3>
+                                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                        job.status === 'ACTIVE' ? 'bg-green-100 text-green-700' :
+                                        job.status === 'DRAFT' ? 'bg-gray-100 text-gray-700' :
+                                        'bg-red-100 text-red-700'
+                                    }`}>
+                                        {job.status}
+                                    </span>
+                                </div>
                                 <p className="text-slate-600">
                                     {job.company} • {job.location}
                                 </p>
-                                <p className="text-sm text-slate-400 mt-1">
-                                    Posted {new Date(job.createdAt).toLocaleDateString()}
-                                </p>
+                                <div className="flex items-center gap-4 mt-2 text-sm text-slate-500">
+                                    <span>Posted {new Date(job.createdAt).toLocaleDateString()}</span>
+                                    <span>•</span>
+                                    <span className="font-semibold text-blue-600">{job.applicationCount || 0} Applicants</span>
+                                </div>
                             </div>
 
                             <div className="flex gap-3">
@@ -79,13 +90,13 @@ export default function RecruiterJobsPage() {
                                     to={`/recruiter/jobs/${job.id}`}
                                     className="px-5 py-2 bg-slate-100 text-slate-700 font-semibold rounded-lg hover:bg-slate-200"
                                 >
-                                    View
+                                    Edit
                                 </Link>
                                 <Link
                                     to={`/recruiter/jobs/${job.id}/applications`}
                                     className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700"
                                 >
-                                    Applicants
+                                    View Applicants
                                 </Link>
                             </div>
                         </div>

@@ -26,10 +26,12 @@ public class JobController {
 
     /**
      * Get all active jobs (public endpoint).
+     * Supports optional search query for AI-powered search.
      */
     @GetMapping
-    public ResponseEntity<List<JobResponse>> getAllJobs() {
-        return ResponseEntity.ok(jobService.getAllJobs());
+    public ResponseEntity<List<JobResponse>> getAllJobs(@RequestParam(required = false) String query) {
+        System.out.println("Received search query: " + query);
+        return ResponseEntity.ok(jobService.getAllJobs(query));
     }
 
     /**
@@ -77,4 +79,3 @@ public class JobController {
         return ResponseEntity.noContent().build();
     }
 }
-

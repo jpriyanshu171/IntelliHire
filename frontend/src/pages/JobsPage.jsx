@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -10,28 +10,45 @@ export default function JobsPage() {
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
   const { user, token } = useAuth();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const loadData = async () => {
+    const loadPageData = async () => {
+      setLoading(true);
+      const query = searchParams.get('query');
+      
+      // Sync search term with URL
+      setSearchTerm(query || '');
+      
+      if (query) {
+        setIsSearching(true);
+      }
+
       try {
-        const [jobsRes, appsRes, statsRes] = await Promise.all([
-          api.get('/jobs'),
-          token ? api.get('/applications/me').catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+        const [appsRes, statsRes] = await Promise.all([
+          token && user?.role === 'STUDENT' ? api.get('/applications/me').catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
           api.get('/stats').catch(() => ({ data: { totalJobs: 0, totalRecruiters: 0, totalStudents: 0, successRate: 98 } }))
         ]);
-        setJobs(jobsRes.data);
         setApplications(appsRes.data || []);
         setStats(statsRes.data);
+
+        const jobsEndpoint = query ? `/jobs?query=${encodeURIComponent(query)}` : '/jobs';
+        const jobsRes = await api.get(jobsEndpoint);
+        setJobs(jobsRes.data);
+
       } catch (err) {
         console.error('Failed to load data:', err);
       } finally {
         setLoading(false);
+        setIsSearching(false);
       }
     };
-    loadData();
+
+    loadPageData();
     
-    // Refresh stats every 30 seconds for real-time updates
     const statsInterval = setInterval(() => {
       api.get('/stats')
         .then(res => setStats(res.data))
@@ -39,7 +56,7 @@ export default function JobsPage() {
     }, 30000);
     
     return () => clearInterval(statsInterval);
-  }, [token]);
+  }, [token, user, searchParams]);
 
   const hasApplied = (jobId) => {
     return applications.some(app => app.jobId === jobId);
@@ -74,7 +91,6 @@ export default function JobsPage() {
         company: job?.company || 'Company',
         createdAt: new Date().toISOString()
       }]);
-      // Refresh stats after applying
       refreshStats();
       alert('✅ Applied successfully!');
     } catch (err) {
@@ -85,11 +101,11 @@ export default function JobsPage() {
     }
   };
 
-  const filteredJobs = jobs.filter(job =>
-    job.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    job.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    job.location?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleSearchSubmit = (e) => {
+    if (e.key === 'Enter') {
+      navigate(`/jobs?query=${encodeURIComponent(searchTerm)}`);
+    }
+  };
 
   return (
     <div>
@@ -111,7 +127,8 @@ export default function JobsPage() {
             <p className="text-xl md:text-2xl text-blue-100 mb-8 leading-relaxed max-w-3xl mx-auto">
               Connect talented students with top recruiters. Streamline your hiring process and discover your dream career with AI-powered matching.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-10">
               {!user && (
                 <>
                   <Link
@@ -235,18 +252,40 @@ export default function JobsPage() {
               </h2>
               <p className="text-lg text-slate-600">Discover your next career move</p>
             </div>
+            
+            {/* Search Bar in Jobs Section */}
             <div className="mt-4 md:mt-0 w-full md:w-auto">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search jobs, companies, locations..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full md:w-80 px-4 py-3 pl-12 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
-                />
-                <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+              <div className="relative group">
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-400 to-purple-400 rounded-xl blur opacity-25 group-hover:opacity-50 transition duration-200"></div>
+                <div className="relative bg-white rounded-xl shadow-lg flex items-center p-1">
+                  <div className="pl-3 text-slate-400">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search jobs..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onKeyDown={handleSearchSubmit}
+                    className="w-full md:w-64 px-3 py-2 text-slate-700 placeholder-slate-400 bg-transparent border-none focus:ring-0 focus:outline-none"
+                  />
+                  <div className="pr-1">
+                    {isSearching ? (
+                      <div className="w-8 h-8 flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-600 border-t-transparent"></div>
+                      </div>
+                    ) : (
+                      <button 
+                        onClick={() => handleSearchSubmit({ key: 'Enter' })}
+                        className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-sm"
+                      >
+                        Go
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -256,7 +295,7 @@ export default function JobsPage() {
               <div className="inline-block animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mb-4"></div>
               <p className="text-xl text-slate-600">Finding the best opportunities for you...</p>
             </div>
-          ) : filteredJobs.length === 0 ? (
+          ) : jobs.length === 0 ? (
             <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl p-16 text-center border-2 border-dashed border-slate-200">
               <div className="text-7xl mb-6">🔍</div>
               <h3 className="text-3xl font-bold text-slate-900 mb-3">No jobs found</h3>
@@ -274,7 +313,7 @@ export default function JobsPage() {
             </div>
           ) : (
             <div className="grid gap-6">
-              {filteredJobs.map((job) => (
+              {jobs.map((job) => (
                 <div
                   key={job.id}
                   className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl border-2 border-slate-100 hover:border-blue-200 transition-all duration-300 overflow-hidden"
@@ -319,8 +358,16 @@ export default function JobsPage() {
                             </div>
                             <p className="text-slate-600 leading-relaxed line-clamp-2 mb-4">{job.description}</p>
                             <div className="flex flex-wrap gap-2">
-                              <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-semibold">Full-time</span>
-                              <span className="px-3 py-1 bg-purple-50 text-purple-700 rounded-full text-xs font-semibold">Remote</span>
+                              {job.salaryMin && job.salaryMax && (
+                                <span className="px-3 py-1 bg-green-50 text-green-700 rounded-full text-xs font-semibold">
+                                  ${job.salaryMin.toLocaleString()} - ${job.salaryMax.toLocaleString()}
+                                </span>
+                              )}
+                              {job.requiredSkills && job.requiredSkills.slice(0, 3).map((skill, idx) => (
+                                <span key={idx} className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-semibold">
+                                  {skill}
+                                </span>
+                              ))}
                             </div>
                           </div>
                         </div>

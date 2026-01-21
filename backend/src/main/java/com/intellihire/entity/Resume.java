@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.List;
@@ -44,6 +46,7 @@ public class Resume {
 
     // JSONB fields for structured data (PostgreSQL specific)
     @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String education; // JSON array of education entries
 
     @ElementCollection
@@ -52,9 +55,11 @@ public class Resume {
     private List<String> skills; // Array of skills
 
     @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String experience; // JSON array of work experience entries
 
     @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String projects; // JSON array of project entries
 
     @Column(nullable = false, updatable = false)
